@@ -198,6 +198,8 @@ describe('settings', () => {
                 voiceAssistantLanguage: null,
                 voiceCustomAgentId: null,
                 voiceBypassToken: false,
+                voiceBackend: 'elevenlabs',
+                voicePushToTalk: true,
                 preferredLanguage: null,
                 recentMachinePaths: [],
                 lastUsedAgent: null,

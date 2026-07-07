@@ -23,7 +23,7 @@ let currentVoiceConversationId: string | null = null;
 let currentVoiceSessionStartedAt: number | null = null;
 
 /**
- * Start a voice session. Returns the ElevenLabs conversation ID if started, null otherwise.
+ * Start a voice session. Returns the conversation ID if started, null otherwise.
  */
 export async function startRealtimeSession(sessionId: string, initialContext?: string): Promise<string | null> {
     currentVoiceConversationId = null;
@@ -46,7 +46,34 @@ export async function startRealtimeSession(sessionId: string, initialContext?: s
         return null;
     }
 
+    const voiceBackend = storage.getState().settings.voiceBackend;
+
     try {
+        // OpenAI backend (#1002): talk directly to Claude via OpenAI STT/TTS
+        // using the user's own API key — no Happy-server token / paywall path.
+        if (voiceBackend === 'openai') {
+            const apiKey = storage.getState().settings.inferenceOpenAIKey;
+            if (!apiKey) {
+                console.error('[Voice] OpenAI API key not configured');
+                storage.getState().setRealtimeStatus('disconnected');
+                Modal.alert(t('common.error'), 'OpenAI API key not configured. Add your key in Settings > Voice.');
+                return null;
+            }
+            const pushToTalk = storage.getState().settings.voicePushToTalk;
+            currentSessionId = sessionId;
+            const conversationId = await voiceSession.startSession({
+                sessionId,
+                initialContext,
+                apiKey,
+                pushToTalk,
+            });
+            currentVoiceConversationId = conversationId;
+            currentVoiceSessionStartedAt = Date.now();
+            voiceSessionStarted = true;
+            return conversationId;
+        }
+
+        // ElevenLabs backend (upstream flow).
         // Bypass Happy server token — only when user has their own custom agent
         const { voiceBypassToken, voiceCustomAgentId } = storage.getState().settings;
         if (voiceBypassToken && voiceCustomAgentId) {
@@ -205,4 +232,17 @@ export function getCurrentVoiceSessionDurationSeconds(): number | undefined {
 
 export function setCurrentRealtimeSessionId(sessionId: string) {
     currentSessionId = sessionId;
+}
+
+export function startTalking(): void {
+    voiceSession?.startTalking();
+}
+
+export function stopTalking(): void {
+    voiceSession?.stopTalking();
+}
+
+export function isPushToTalkEnabled(): boolean {
+    const settings = storage.getState().settings;
+    return settings.voiceBackend === 'openai' && settings.voicePushToTalk;
 }

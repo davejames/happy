@@ -1,7 +1,8 @@
 import React from 'react';
 import { ElevenLabsProvider } from '@elevenlabs/react-native';
-import { RealtimeVoiceSession } from './RealtimeVoiceSession';
-import { useVoiceSessionGeneration } from '@/sync/storage';
+import { ElevenLabsVoiceSession } from './ElevenLabsVoiceSession';
+import { OpenAIVoiceSession } from './OpenAIVoiceSession';
+import { useVoiceSessionGeneration, useSetting } from '@/sync/storage';
 
 export const RealtimeProvider = ({ children }: { children: React.ReactNode }) => {
     // Force ElevenLabsProvider to remount between sessions. The native SDK uses
@@ -9,10 +10,11 @@ export const RealtimeProvider = ({ children }: { children: React.ReactNode }) =>
     // startSession silently fails. Children sit OUTSIDE the provider so the app
     // tree isn't torn down on remount.
     const generation = useVoiceSessionGeneration();
+    const voiceBackend = useSetting('voiceBackend');
     return (
         <>
             <ElevenLabsProvider key={generation}>
-                <RealtimeVoiceSession />
+                {voiceBackend === 'openai' ? <OpenAIVoiceSession /> : <ElevenLabsVoiceSession />}
             </ElevenLabsProvider>
             {children}
         </>

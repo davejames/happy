@@ -931,7 +931,7 @@ export const knownTools = {
     'ToolSearch': {
         icon: ICON_SEARCH,
         hidden: true,
-    }
+    },
 } satisfies Record<string, {
     title?: string | ((opts: { metadata: Metadata | null, tool: ToolCall }) => string);
     icon: (size: number, color: string) => React.ReactNode;

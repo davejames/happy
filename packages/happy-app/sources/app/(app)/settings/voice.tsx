@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import React, { useState } from 'react';
+import { View, ActivityIndicator, TextInput } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -10,6 +10,7 @@ import { Switch } from '@/components/Switch';
 import { UsageBar } from '@/components/usage/UsageBar';
 import { useSettingMutable, useEntitlement, useLocalSetting, useLocalSettingMutable, useSetting } from '@/sync/storage';
 import { useAuth } from '@/auth/AuthContext';
+import { useUnistyles } from 'react-native-unistyles';
 import { findLanguageByCode, getLanguageDisplayName, LANGUAGES } from '@/constants/Languages';
 import { fetchVoiceUsage, type VoiceUsageResponse } from '@/sync/apiVoice';
 import { t } from '@/text';
@@ -25,17 +26,26 @@ function formatVoiceTime(totalSeconds: number): string {
     return `${mins}m ${secs}s`;
 }
 
-export default React.memo(function VoiceSettingsScreen() {
+const PROVIDER_LABELS: Record<string, string> = {
+    elevenlabs: 'ElevenLabs',
+    openai: 'OpenAI GPT-4o',
+};
+
+export default function VoiceSettingsScreen() {
+    const { theme } = useUnistyles();
     const router = useRouter();
     const auth = useAuth();
     const [voiceAssistantLanguage] = useSettingMutable('voiceAssistantLanguage');
+    const [voiceBackend] = useSettingMutable('voiceBackend');
+    const [openaiKey, setOpenaiKey] = useSettingMutable('inferenceOpenAIKey');
+    const [pushToTalk, setPushToTalk] = useSettingMutable('voicePushToTalk');
     const [voiceCustomAgentId, setVoiceCustomAgentId] = useSettingMutable('voiceCustomAgentId');
     const [voiceBypassToken, setVoiceBypassToken] = useSettingMutable('voiceBypassToken');
     const [voiceUpsellOverride, setVoiceUpsellOverride] = useLocalSettingMutable('voiceUpsellOverride');
     const experiments = useSetting('experiments');
     const devModeEnabled = __DEV__ || useLocalSetting('devModeEnabled');
-
     const hasPro = useEntitlement('pro');
+    const [keyVisible, setKeyVisible] = useState(false);
 
     const [usage, setUsage] = React.useState<VoiceUsageResponse | null>(null);
     const [usageLoading, setUsageLoading] = React.useState(true);
@@ -57,7 +67,7 @@ export default React.memo(function VoiceSettingsScreen() {
         await sync.presentPaywall('voluntary_support');
     }, []);
 
-    const handleCustomAgentId = React.useCallback(async () => {
+    const handleCustomAgentId = async () => {
         const value = await Modal.prompt(
             t('settingsVoice.customAgentId'),
             t('settingsVoice.customAgentIdDescription'),
@@ -72,7 +82,7 @@ export default React.memo(function VoiceSettingsScreen() {
             // Auto-toggle bypass when setting/clearing agent ID
             setVoiceBypassToken(trimmed !== null);
         }
-    }, [voiceCustomAgentId, setVoiceCustomAgentId, setVoiceBypassToken]);
+    };
 
     const handleVoiceExperimentOverride = React.useCallback(() => {
         Modal.alert(
@@ -144,7 +154,73 @@ export default React.memo(function VoiceSettingsScreen() {
 
     return (
         <ItemList style={{ paddingTop: 0 }}>
-            {/* Voice Usage */}
+            {/* Voice Provider (#1002) */}
+            <ItemGroup
+                title={t('settingsVoice.backendTitle')}
+                footer={t('settingsVoice.backendDescription')}
+            >
+                <Item
+                    title={t('settingsVoice.backendTitle')}
+                    icon={<Ionicons name="mic-outline" size={29} color="#007AFF" />}
+                    detail={PROVIDER_LABELS[voiceBackend] ?? voiceBackend}
+                    onPress={() => router.push('/settings/voice/provider')}
+                />
+            </ItemGroup>
+
+            {/* OpenAI API Key - only shown when OpenAI backend is selected (#1002) */}
+            {voiceBackend === 'openai' && (
+                <ItemGroup
+                    title={t('settingsVoice.apiKeyTitle')}
+                    footer={t('settingsVoice.apiKeyDescription')}
+                >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 }}>
+                        <Ionicons name="key-outline" size={29} color="#007AFF" style={{ marginRight: 12 }} />
+                        <TextInput
+                            style={{
+                                flex: 1,
+                                fontSize: 16,
+                                color: theme.colors.text,
+                            }}
+                            placeholder={t('settingsVoice.apiKeyPlaceholder')}
+                            placeholderTextColor={theme.colors.input?.placeholder ?? '#999'}
+                            value={openaiKey ?? ''}
+                            onChangeText={(text) => setOpenaiKey(text || null)}
+                            secureTextEntry={!keyVisible}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            autoComplete="off"
+                        />
+                        <Ionicons
+                            name={keyVisible ? 'eye-off-outline' : 'eye-outline'}
+                            size={22}
+                            color={theme.colors.textSecondary}
+                            onPress={() => setKeyVisible(!keyVisible)}
+                            style={{ marginLeft: 8, padding: 4 }}
+                        />
+                    </View>
+                </ItemGroup>
+            )}
+
+            {/* Push-to-Talk - only shown when OpenAI backend is selected (#1002) */}
+            {voiceBackend === 'openai' && (
+                <ItemGroup
+                    title={t('settingsVoice.pushToTalkTitle')}
+                    footer={t('settingsVoice.pushToTalkDescription')}
+                >
+                    <Item
+                        title={t('settingsVoice.pushToTalkTitle')}
+                        icon={<Ionicons name="hand-left-outline" size={29} color="#007AFF" />}
+                        rightElement={
+                            <Switch
+                                value={pushToTalk}
+                                onValueChange={setPushToTalk}
+                            />
+                        }
+                    />
+                </ItemGroup>
+            )}
+
+            {/* Voice Usage (upstream) */}
             {usageLoading ? (
                 <View style={{ paddingVertical: 24, alignItems: 'center' }}>
                     <ActivityIndicator />
@@ -177,7 +253,7 @@ export default React.memo(function VoiceSettingsScreen() {
                 </ItemGroup>
             ) : null}
 
-            {/* Support / Upgrade */}
+            {/* Support / Upgrade (upstream) */}
             {!hasPro && (
                 <ItemGroup>
                     <Item
@@ -233,32 +309,34 @@ export default React.memo(function VoiceSettingsScreen() {
                 />
             </ItemGroup>
 
-            {/* Bring Your Own Agent */}
-            <ItemGroup
-                title={t('settingsVoice.byoTitle')}
-                footer={t('settingsVoice.byoDescription')}
-            >
-                <Item
-                    title={t('settingsVoice.customAgentId')}
-                    subtitle={voiceCustomAgentId ?? t('settingsVoice.customAgentIdNotSet')}
-                    icon={<Ionicons name="key-outline" size={29} color="#FF9500" />}
-                    onPress={handleCustomAgentId}
-                />
-                <Item
-                    title={t('settingsVoice.bypassToken')}
-                    subtitle={t('settingsVoice.bypassTokenSubtitle')}
-                    icon={<Ionicons name="flash-outline" size={29} color="#FF3B30" />}
-                    rightElement={
-                        <Switch
-                            value={voiceBypassToken}
-                            onValueChange={setVoiceBypassToken}
-                        />
-                    }
-                />
-            </ItemGroup>
+            {/* Bring Your Own Agent — only shown for ElevenLabs */}
+            {voiceBackend === 'elevenlabs' && (
+                <ItemGroup
+                    title={t('settingsVoice.byoTitle')}
+                    footer={t('settingsVoice.byoDescription')}
+                >
+                    <Item
+                        title={t('settingsVoice.customAgentId')}
+                        subtitle={voiceCustomAgentId ?? t('settingsVoice.customAgentIdNotSet')}
+                        icon={<Ionicons name="key-outline" size={29} color="#FF9500" />}
+                        onPress={handleCustomAgentId}
+                    />
+                    <Item
+                        title={t('settingsVoice.bypassToken')}
+                        subtitle={t('settingsVoice.bypassTokenSubtitle')}
+                        icon={<Ionicons name="flash-outline" size={29} color="#FF3B30" />}
+                        rightElement={
+                            <Switch
+                                value={voiceBypassToken}
+                                onValueChange={setVoiceBypassToken}
+                            />
+                        }
+                    />
+                </ItemGroup>
+            )}
 
             {/* Prompt Guide — shown when custom agent is configured */}
-            {voiceCustomAgentId && (
+            {voiceBackend === 'elevenlabs' && voiceCustomAgentId && (
                 <ItemGroup
                     title={t('settingsVoice.promptGuideTitle')}
                     footer={t('settingsVoice.promptGuideDescription')}
@@ -272,4 +350,4 @@ export default React.memo(function VoiceSettingsScreen() {
             )}
         </ItemList>
     );
-});
+}
