@@ -44,6 +44,10 @@ export function query(params: { prompt: QueryPrompt; options?: QueryOptions }): 
         strictMcpConfig: opts?.strictMcpConfig,
         sessionId: undefined,
         effort: opts?.effort,
+        // NixOS: the SDK's bundled claude-code binary isn't present (its
+        // postinstall download is skipped in the Nix build), so point the SDK at
+        // the caller-provided (Nix) claude executable, which is spawned directly.
+        pathToClaudeCodeExecutable: process.env.HAPPY_CLAUDE_PATH || undefined,
     }
 
     // Map abort signal -> AbortController
