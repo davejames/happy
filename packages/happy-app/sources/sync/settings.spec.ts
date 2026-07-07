@@ -200,6 +200,8 @@ describe('settings', () => {
                 voiceBypassToken: false,
                 voiceBackend: 'elevenlabs',
                 voicePushToTalk: true,
+                localVoiceSttUrl: 'http://localhost:8081/inference',
+                localVoiceTtsUrl: 'http://localhost:8082/tts',
                 preferredLanguage: null,
                 recentMachinePaths: [],
                 lastUsedAgent: null,

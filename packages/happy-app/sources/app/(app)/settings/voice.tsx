@@ -29,6 +29,7 @@ function formatVoiceTime(totalSeconds: number): string {
 const PROVIDER_LABELS: Record<string, string> = {
     elevenlabs: 'ElevenLabs',
     openai: 'OpenAI GPT-4o',
+    local: 'Local (Whisper + Piper)',
 };
 
 export default function VoiceSettingsScreen() {
@@ -39,6 +40,8 @@ export default function VoiceSettingsScreen() {
     const [voiceBackend] = useSettingMutable('voiceBackend');
     const [openaiKey, setOpenaiKey] = useSettingMutable('inferenceOpenAIKey');
     const [pushToTalk, setPushToTalk] = useSettingMutable('voicePushToTalk');
+    const [localSttUrl, setLocalSttUrl] = useSettingMutable('localVoiceSttUrl');
+    const [localTtsUrl, setLocalTtsUrl] = useSettingMutable('localVoiceTtsUrl');
     const [voiceCustomAgentId, setVoiceCustomAgentId] = useSettingMutable('voiceCustomAgentId');
     const [voiceBypassToken, setVoiceBypassToken] = useSettingMutable('voiceBypassToken');
     const [voiceUpsellOverride, setVoiceUpsellOverride] = useLocalSettingMutable('voiceUpsellOverride');
@@ -201,8 +204,45 @@ export default function VoiceSettingsScreen() {
                 </ItemGroup>
             )}
 
-            {/* Push-to-Talk - only shown when OpenAI backend is selected (#1002) */}
-            {voiceBackend === 'openai' && (
+            {/* Local voice endpoints - only shown when the local backend is selected */}
+            {voiceBackend === 'local' && (
+                <ItemGroup
+                    title="Local voice endpoints"
+                    footer="Self-hosted speech servers on your tailnet: whisper.cpp whisper-server for STT and a piper HTTP wrapper for TTS. Nothing leaves your network."
+                >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 }}>
+                        <Ionicons name="ear-outline" size={29} color="#34C759" style={{ marginRight: 12 }} />
+                        <TextInput
+                            style={{ flex: 1, fontSize: 16, color: theme.colors.text }}
+                            placeholder="http://host:8081/inference"
+                            placeholderTextColor={theme.colors.input?.placeholder ?? '#999'}
+                            value={localSttUrl ?? ''}
+                            onChangeText={(text) => setLocalSttUrl(text)}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            autoComplete="off"
+                            keyboardType="url"
+                        />
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 }}>
+                        <Ionicons name="volume-high-outline" size={29} color="#34C759" style={{ marginRight: 12 }} />
+                        <TextInput
+                            style={{ flex: 1, fontSize: 16, color: theme.colors.text }}
+                            placeholder="http://host:8082/tts"
+                            placeholderTextColor={theme.colors.input?.placeholder ?? '#999'}
+                            value={localTtsUrl ?? ''}
+                            onChangeText={(text) => setLocalTtsUrl(text)}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            autoComplete="off"
+                            keyboardType="url"
+                        />
+                    </View>
+                </ItemGroup>
+            )}
+
+            {/* Push-to-Talk - shown for OpenAI (#1002) and local backends */}
+            {(voiceBackend === 'openai' || voiceBackend === 'local') && (
                 <ItemGroup
                     title={t('settingsVoice.pushToTalkTitle')}
                     footer={t('settingsVoice.pushToTalkDescription')}

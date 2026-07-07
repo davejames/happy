@@ -18,6 +18,11 @@ const PROVIDERS = [
         title: 'OpenAI GPT-4o',
         subtitle: () => t('settingsVoice.backendOpenAISubtitle'),
     },
+    {
+        key: 'local' as const,
+        title: 'Local (Whisper + Piper)',
+        subtitle: () => 'Self-hosted speech on your tailnet — nothing leaves your network',
+    },
 ];
 
 export default function VoiceProviderScreen() {

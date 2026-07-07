@@ -1,6 +1,7 @@
 import React from 'react';
 import { ElevenLabsVoiceSession } from './ElevenLabsVoiceSession';
 import { OpenAIVoiceSession } from './OpenAIVoiceSession';
+import { LocalVoiceSession } from './LocalVoiceSession';
 import { useVoiceSessionGeneration, useSetting } from '@/sync/storage';
 
 export const RealtimeProvider = ({ children }: { children: React.ReactNode }) => {
@@ -12,7 +13,9 @@ export const RealtimeProvider = ({ children }: { children: React.ReactNode }) =>
         <>
             {voiceBackend === 'openai'
                 ? <OpenAIVoiceSession />
-                : <ElevenLabsVoiceSession key={generation} />}
+                : voiceBackend === 'local'
+                    ? <LocalVoiceSession />
+                    : <ElevenLabsVoiceSession key={generation} />}
             {children}
         </>
     );
