@@ -423,7 +423,11 @@ export class ApiMachineClient {
     }
 
     connect() {
-        const serverUrl = configuration.serverUrl.replace(/^http/, 'ws');
+        // Fold any base path (self-host under /happy) into options.path below;
+        // socket.io reads a URL path as a namespace, so connect to origin only.
+        const parsed = new URL(configuration.serverUrl);
+        const basePath = parsed.pathname === '/' ? '' : parsed.pathname;
+        const serverUrl = parsed.origin.replace(/^http/, 'ws');
         logger.debug(`[API MACHINE] Connecting to ${serverUrl}`);
 
         this.socket = io(serverUrl, {
@@ -434,7 +438,7 @@ export class ApiMachineClient {
                 machineId: this.machine.id,
                 happyClient: `cli-daemon/${configuration.currentCliVersion}`
             },
-            path: '/v1/updates',
+            path: `${basePath}/v1/updates`,
             reconnection: false,
         });
 

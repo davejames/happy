@@ -255,14 +255,18 @@ export class ApiSessionClient extends EventEmitter {
         // Create socket
         //
 
-        this.socket = io(configuration.serverUrl, {
+        // Fold any base path (self-host under /happy) into options.path; socket.io
+        // reads a URL path as a namespace, so connect to origin only.
+        const parsed = new URL(configuration.serverUrl);
+        const basePath = parsed.pathname === '/' ? '' : parsed.pathname;
+        this.socket = io(parsed.origin, {
             auth: {
                 token: this.token,
                 clientType: 'session-scoped' as const,
                 sessionId: this.sessionId,
                 happyClient: `cli-coding-session/${configuration.currentCliVersion}`
             },
-            path: '/v1/updates',
+            path: `${basePath}/v1/updates`,
             reconnection: false,
             transports: ['websocket'],
             withCredentials: true,
