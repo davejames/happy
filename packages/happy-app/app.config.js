@@ -213,7 +213,10 @@ export default {
             }
         },
         experiments: {
-            typedRoutes: true
+            typedRoutes: true,
+            // Serve the web bundle under a base path (e.g. /happy) when self-hosted
+            // behind a path-mounting reverse proxy. Unset → served at root.
+            baseUrl: process.env.HAPPY_WEB_BASE_URL || undefined
         },
         extra: {
             router: {

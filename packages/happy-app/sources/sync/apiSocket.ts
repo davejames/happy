@@ -85,8 +85,14 @@ class ApiSocket {
 
         this.updateStatus('connecting');
 
-        this.socket = io(this.config.endpoint, {
-            path: '/v1/updates',
+        // The endpoint may carry a base path (self-hosted under e.g. /happy).
+        // socket.io reads a URL path as a *namespace*, so pass origin-only and
+        // fold the base into options.path, where the engine actually mounts.
+        // '' at root (identical to upstream); '/happy' when mounted under a prefix.
+        const { origin, pathname } = new URL(this.config.endpoint);
+        const basePath = pathname === '/' ? '' : pathname;
+        this.socket = io(origin, {
+            path: `${basePath}/v1/updates`,
             auth: {
                 token: this.config.token,
                 clientType: 'user-scoped' as const,
