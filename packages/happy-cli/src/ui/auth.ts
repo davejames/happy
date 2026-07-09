@@ -1,4 +1,5 @@
 import { decodeBase64, encodeBase64, encodeBase64Url } from "@/api/encryption";
+import { authGetToken } from "@/api/auth";
 import { configuration } from "@/configuration";
 import { randomBytes } from "node:crypto";
 import tweetnacl from 'tweetnacl';
@@ -260,7 +261,19 @@ export async function authAndSetupMachineIfNeeded(): Promise<{
     let credentials = await readCredentials();
     let newAuth = false;
 
-    if (!credentials) {
+    // Shared-account auto-connect (self-hosted tailnet deployments): when
+    // HAPPY_ACCOUNT_SECRET is provided, mint a token from it and use that account
+    // directly — no interactive pairing. Env wins over stored creds so every
+    // machine joins the one shared account. The base64url secret matches what the
+    // relay injects into the web client (window.__HAPPY_CONFIG__.accountSecret).
+    const sharedSecret = process.env.HAPPY_ACCOUNT_SECRET;
+    if (sharedSecret) {
+        logger.debug('[AUTH] HAPPY_ACCOUNT_SECRET set — joining shared account (no pairing)');
+        const secret = new Uint8Array(Buffer.from(sharedSecret, 'base64url'));
+        const token = await authGetToken(secret);
+        await writeCredentialsLegacy({ secret, token });
+        credentials = { encryption: { type: 'legacy', secret }, token };
+    } else if (!credentials) {
         logger.debug('[AUTH] No credentials found, starting authentication flow...');
         const authResult = await doAuth();
         if (!authResult) {

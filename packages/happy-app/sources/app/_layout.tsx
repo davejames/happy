@@ -19,6 +19,10 @@ import { ModalProvider } from '@/modal';
 import { PostHogProvider } from 'posthog-react-native';
 import { tracking } from '@/track/tracking';
 import { syncRestore } from '@/sync/sync';
+import { authGetToken } from '@/auth/authGetToken';
+import { normalizeSecretKey } from '@/auth/secretKeyBackup';
+import { decodeBase64 } from '@/encryption/base64';
+import { getInjectedAccountSecret } from '@/sync/serverConfig';
 import { useTrackScreens } from '@/track/useTrackScreens';
 import { RealtimeProvider } from '@/realtime/RealtimeProvider';
 import { FaviconPermissionIndicator } from '@/components/web/FaviconPermissionIndicator';
@@ -253,6 +257,21 @@ export default function RootLayout() {
 
                     if (Platform.OS === 'web' && typeof window !== 'undefined') {
                         window.history.replaceState({}, '', window.location.pathname);
+                    }
+                }
+
+                // Tailnet auto-login: if still not logged in, mint a token from the
+                // shared account secret the relay injected (the manual-restore path:
+                // normalize → authGetToken → store). Ungated — on this deployment the
+                // tailnet is the auth boundary, so any browser that reaches the relay
+                // boots into the one shared account.
+                if (!credentials) {
+                    const injectedSecret = getInjectedAccountSecret();
+                    if (injectedSecret) {
+                        const normalized = normalizeSecretKey(injectedSecret);
+                        const token = await authGetToken(decodeBase64(normalized, 'base64url'));
+                        credentials = { token, secret: normalized };
+                        await TokenStorage.setCredentials(credentials);
                     }
                 }
 

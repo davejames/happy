@@ -14,6 +14,16 @@ export function getServerUrl(): string {
            DEFAULT_SERVER_URL;
 }
 
+// A shared account secret the self-hosted relay may inject into the served page
+// (window.__HAPPY_CONFIG__.accountSecret) for tailnet deployments where the
+// tailnet IS the trust boundary: every browser that can reach the relay boots
+// straight into the one shared account (see the boot flow in app/_layout.tsx,
+// which mints a token from this secret). Absent on the hosted service, so it
+// stays opt-in per deployment.
+export function getInjectedAccountSecret(): string | null {
+    return (globalThis as any).__HAPPY_CONFIG__?.accountSecret ?? null;
+}
+
 export function setServerUrl(url: string | null): void {
     if (url && url.trim()) {
         serverConfigStorage.set(SERVER_KEY, url.trim());
