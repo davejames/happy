@@ -10,10 +10,21 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
 
     let scannerMessageChain = Promise.resolve();
 
-    // Create scanner
+    // Create scanner.
+    //
+    // Never give up waiting for the transcript file (Infinity): a local session is
+    // hook-confirmed real (SessionStart fired with a transcript_path), but Claude
+    // Code only writes the .jsonl on the FIRST turn — so a session started and left
+    // idle beyond the watcher's default 60s (common when driving it remotely from
+    // the phone) would be dropped, and none of its messages ever sync ("No messages
+    // yet" despite an active session). The absent-file poll backs off to a 15s cap,
+    // so this costs a stat every 15s and picks the file up shortly after it appears.
+    // The 60s give-up guard is only needed for the REMOTE launch path (runClaude),
+    // where a phantom session's transcript may never appear at all.
     const scanner = await createSessionScanner({
         sessionId: session.sessionId,
         workingDirectory: session.path,
+        missingFileTimeoutMs: Infinity,
         onMessage: (message) => { 
             // Block SDK summary messages - we generate our own
             if (message.type !== 'summary') {
