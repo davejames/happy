@@ -20,7 +20,6 @@ import { PostHogProvider } from 'posthog-react-native';
 import { tracking } from '@/track/tracking';
 import { syncRestore } from '@/sync/sync';
 import { authGetToken } from '@/auth/authGetToken';
-import { normalizeSecretKey } from '@/auth/secretKeyBackup';
 import { decodeBase64 } from '@/encryption/base64';
 import { getInjectedAccountSecret } from '@/sync/serverConfig';
 import { useTrackScreens } from '@/track/useTrackScreens';
@@ -261,16 +260,18 @@ export default function RootLayout() {
                 }
 
                 // Tailnet auto-login: if still not logged in, mint a token from the
-                // shared account secret the relay injected (the manual-restore path:
-                // normalize → authGetToken → store). Ungated — on this deployment the
-                // tailnet is the auth boundary, so any browser that reaches the relay
-                // boots into the one shared account.
+                // shared account secret the relay injected. The secret is already a
+                // normalized base64url string, so decode it directly — do NOT run it
+                // through normalizeSecretKey, which treats any dash-bearing input as a
+                // formatted mnemonic and base32-decodes it (base64url contains '-'/'_',
+                // yielding a wrong-length key). Ungated — on this deployment the tailnet
+                // is the auth boundary, so any browser that reaches the relay boots into
+                // the one shared account.
                 if (!credentials) {
                     const injectedSecret = getInjectedAccountSecret();
                     if (injectedSecret) {
-                        const normalized = normalizeSecretKey(injectedSecret);
-                        const token = await authGetToken(decodeBase64(normalized, 'base64url'));
-                        credentials = { token, secret: normalized };
+                        const token = await authGetToken(decodeBase64(injectedSecret, 'base64url'));
+                        credentials = { token, secret: injectedSecret };
                         await TokenStorage.setCredentials(credentials);
                     }
                 }
