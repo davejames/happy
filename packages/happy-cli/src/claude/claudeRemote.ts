@@ -4,7 +4,6 @@ import type { MessageParam } from '@anthropic-ai/sdk/resources'
 import { mapToClaudeMode } from "./utils/permissionMode";
 import { claudeCheckSession } from "./utils/claudeCheckSession";
 import { join } from 'node:path';
-import { readFileSync } from 'node:fs';
 import { parseSpecialCommand } from "@/parsers/specialCommands";
 import { logger } from "@/lib";
 import { PushableAsyncIterable } from "@/utils/PushableAsyncIterable";
@@ -119,26 +118,12 @@ export async function claudeRemote(opts: {
         }
     }
 
-    // The `claude` wrapper delivers always-on MCP servers (e.g. git-cold-storage)
-    // as `--mcp-config <file>` flags, forwarded here in claudeArgs. The Agent SDK
-    // does NOT read `--mcp-config` (CLI-only) — it only honors the mcpServers
-    // option — so merge those files into mcpServers, else they silently drop in
-    // remote mode (they work in interactive mode, which passes the raw flag).
-    let mergedMcpServers: Record<string, any> = { ...(opts.mcpServers ?? {}) };
-    const cliArgs = opts.claudeArgs ?? [];
-    for (let i = 0; i < cliArgs.length; i++) {
-        if (cliArgs[i] === '--mcp-config' && i + 1 < cliArgs.length) {
-            const parsed = JSON.parse(readFileSync(cliArgs[i + 1], 'utf8'));
-            mergedMcpServers = { ...mergedMcpServers, ...(parsed.mcpServers ?? {}) };
-        }
-    }
-
     // Prepare SDK options
     let mode = initial.mode;
     const sdkOptions: QueryOptions = {
         cwd: opts.path,
         resume: startFrom ?? undefined,
-        mcpServers: mergedMcpServers,
+        mcpServers: opts.mcpServers,
         permissionMode: mapToClaudeMode(initial.mode.permissionMode),
         model: initial.mode.model,
         fallbackModel: initial.mode.fallbackModel,
