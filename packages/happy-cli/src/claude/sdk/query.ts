@@ -42,6 +42,7 @@ export function query(params: { prompt: QueryPrompt; options?: QueryOptions }): 
         systemPrompt,
         settings: opts?.settingsPath,
         strictMcpConfig: opts?.strictMcpConfig,
+        extraArgs: opts?.extraArgs,
         sessionId: undefined,
         effort: opts?.effort,
         // NixOS: the SDK's bundled claude-code binary isn't present (its

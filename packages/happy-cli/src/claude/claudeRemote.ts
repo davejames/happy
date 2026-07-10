@@ -4,6 +4,9 @@ import type { MessageParam } from '@anthropic-ai/sdk/resources'
 import { mapToClaudeMode } from "./utils/permissionMode";
 import { claudeCheckSession } from "./utils/claudeCheckSession";
 import { join } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { createHash } from 'node:crypto';
 import { parseSpecialCommand } from "@/parsers/specialCommands";
 import { logger } from "@/lib";
 import { PushableAsyncIterable } from "@/utils/PushableAsyncIterable";
@@ -118,12 +121,40 @@ export async function claudeRemote(opts: {
         }
     }
 
+    // Give the SDK-spawned claude the SAME --mcp-config flags the interactive
+    // terminal passes (the `claude` wrapper seeds always-on + optional MCP servers
+    // as --mcp-config files in claudeArgs). The SDK doesn't forward claudeArgs, so
+    // hand them through extraArgs — claude then loads and spawns those servers
+    // itself, with THIS session's devshell env, exactly like the terminal. (They
+    // must NOT go through the programmatic mcpServers option, which the SDK
+    // serialises into one inline --mcp-config that poisons headless stdio init.)
+    // extraArgs carries a single value per flag, so multiple --mcp-config files are
+    // merged into one; the merged file keeps each server's original (often
+    // PATH-relative) command, which resolves in the spawned claude's env.
+    const mcpConfigPaths: string[] = [];
+    const claudeArgs = opts.claudeArgs ?? [];
+    for (let i = 0; i < claudeArgs.length; i++) {
+        if (claudeArgs[i] === '--mcp-config' && i + 1 < claudeArgs.length) {
+            mcpConfigPaths.push(claudeArgs[i + 1]);
+        }
+    }
+    let mcpConfigArg: string | undefined;
+    if (mcpConfigPaths.length > 0) {
+        const mergedServers: Record<string, unknown> = {};
+        for (const path of mcpConfigPaths) {
+            Object.assign(mergedServers, JSON.parse(readFileSync(path, 'utf8')).mcpServers ?? {});
+        }
+        mcpConfigArg = join(tmpdir(), `happy-remote-mcp-${createHash('sha1').update(mcpConfigPaths.join(':')).digest('hex').slice(0, 12)}.json`);
+        writeFileSync(mcpConfigArg, JSON.stringify({ mcpServers: mergedServers }));
+    }
+
     // Prepare SDK options
     let mode = initial.mode;
     const sdkOptions: QueryOptions = {
         cwd: opts.path,
         resume: startFrom ?? undefined,
         mcpServers: opts.mcpServers,
+        extraArgs: mcpConfigArg ? { 'mcp-config': mcpConfigArg } : undefined,
         permissionMode: mapToClaudeMode(initial.mode.permissionMode),
         model: initial.mode.model,
         fallbackModel: initial.mode.fallbackModel,

@@ -41,6 +41,13 @@ export interface QueryOptions {
     model?: string
     fallbackModel?: string
     strictMcpConfig?: boolean
+    /**
+     * Extra CLI flags forwarded verbatim to the spawned claude binary (keys are
+     * flag names without the leading --, `null` for boolean flags). Used to hand
+     * the SDK-spawned claude the wrapper's --mcp-config files so it loads MCP
+     * servers the same way the interactive terminal does.
+     */
+    extraArgs?: Record<string, string | null>
     canCallTool?: CanCallToolCallback
     /** Path to a settings JSON file to pass to Claude via --settings */
     settingsPath?: string
