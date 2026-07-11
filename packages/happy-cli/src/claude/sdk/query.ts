@@ -3,18 +3,18 @@
  * Maps internal QueryOptions to official SDK Options
  */
 
-import { query as sdkQuery, type Options, type Query } from '@anthropic-ai/claude-agent-sdk'
+import { query as sdkQuery, startup as sdkStartup, type Options, type Query } from '@anthropic-ai/claude-agent-sdk'
 import type { QueryOptions, QueryPrompt, SDKMessage } from './types'
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import { ensureLocalProxyBypass } from '../utils/proxyBypass'
 import { resolveHappyEntrypoint } from './happyEntrypoint'
 
 /**
- * Wraps the official SDK query() with our QueryOptions adapter
+ * Maps our internal QueryOptions to the official SDK Options. Shared by query()
+ * and startup() so the two entry points never drift on env tagging, abort
+ * wiring, canUseTool, or MCP config.
  */
-export function query(params: { prompt: QueryPrompt; options?: QueryOptions }): Query {
-    const opts = params.options
-
+function buildSdkOptions(opts?: QueryOptions): Options {
     // Build system prompt
     let systemPrompt: Options['systemPrompt'] = undefined
     if (opts?.customSystemPrompt) {
@@ -82,8 +82,32 @@ export function query(params: { prompt: QueryPrompt; options?: QueryOptions }): 
         }
     }
 
+    return sdkOptions
+}
+
+/**
+ * Wraps the official SDK query() with our QueryOptions adapter
+ */
+export function query(params: { prompt: QueryPrompt; options?: QueryOptions }): Query {
     return sdkQuery({
         prompt: params.prompt as string | AsyncIterable<SDKUserMessage>,
-        options: sdkOptions,
+        options: buildSdkOptions(params.options),
     })
+}
+
+/**
+ * Pre-warms the Claude subprocess via the official SDK startup() with our
+ * QueryOptions adapter, returning a handle whose query() sends turn-1 to that
+ * already-spawned process. The remote path uses this so MCP servers connect
+ * before turn-1 is built, keeping their tools usable (see claudeRemote.ts).
+ */
+export async function startup(params: { options?: QueryOptions }): Promise<{
+    query: (prompt: QueryPrompt) => Query
+    close: () => void
+}> {
+    const warm = await sdkStartup({ options: buildSdkOptions(params.options) })
+    return {
+        query: (prompt: QueryPrompt) => warm.query(prompt as string | AsyncIterable<SDKUserMessage>),
+        close: () => warm.close(),
+    }
 }

@@ -1,5 +1,5 @@
 import { EnhancedMode } from "./loop";
-import { query, type QueryOptions, type SDKMessage, type SDKSystemMessage, AbortError, SDKUserMessage } from '@/claude/sdk'
+import { startup, type QueryOptions, type SDKMessage, type SDKSystemMessage, AbortError, SDKUserMessage } from '@/claude/sdk'
 import type { MessageParam } from '@anthropic-ai/sdk/resources'
 import { mapToClaudeMode } from "./utils/permissionMode";
 import { claudeCheckSession } from "./utils/claudeCheckSession";
@@ -191,11 +191,21 @@ export async function claudeRemote(opts: {
         },
     });
 
-    // Start the loop
-    const response = query({
-        prompt: messages,
-        options: sdkOptions,
-    });
+    // Start the loop. Pre-warm the subprocess with startup() so MCP servers —
+    // especially slow stdio ones seeded via --mcp-config — finish connecting
+    // BEFORE turn-1 is sent. Otherwise the headless tool set is built while they
+    // are still 'pending' and their tools stay unusable for the whole session
+    // (terminal Claude only "works" because the human's typing delay covers it).
+    // startup() itself does NOT wait for MCP (it resolves ~0.7s, before stdio
+    // servers connect ~1.3s), so when stdio --mcp-config servers are present,
+    // gate turn-1 behind a short settle. Validated in tmp/mcp-*-test.
+    const warm = await startup({ options: sdkOptions });
+    const settleMs = mcpConfigArg ? Number(process.env.HAPPY_MCP_SETTLE_MS ?? 2500) : 0;
+    if (settleMs > 0) {
+        logger.debug(`[claudeRemote] Settling ${settleMs}ms for MCP servers to connect before turn-1`);
+        await new Promise((resolve) => setTimeout(resolve, settleMs));
+    }
+    const response = warm.query(messages);
 
     // Expose query control methods to permission handler
     if (opts.onQueryReady) {
